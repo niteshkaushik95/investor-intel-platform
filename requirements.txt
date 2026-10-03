@@ -1,0 +1,4 @@
+pymupdf4llm
+chromadb
+python-dotenv
+langchain-groq
