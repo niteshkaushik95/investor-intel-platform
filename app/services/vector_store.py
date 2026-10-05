@@ -28,12 +28,13 @@ def add_chunks_to_vector_store(collection_name: str, chunks: list[str], source_f
     collection.add(documents=chunks, metadatas=metadatas, ids=ids)
     print("Done!")
 
-def search_similar_chunks(collection_name: str, query: str, top_k: int = 2):
+# FIX: Change top_k: int = 2 to use our global setting
+def search_similar_chunks(collection_name: str, query: str, top_k: int = settings.DEFAULT_TOP_K):
     """Searches the database for chunks with similar meaning to the query."""
     client = get_chroma_client()
     collection = client.get_collection(name=collection_name)
     
-    print(f"\nSearching for: '{query}'")
+    print(f"\nSearching for: '{query}' (Retrieving top {top_k} chunks)")
     results = collection.query(
         query_texts=[query],
         n_results=top_k 
@@ -56,7 +57,12 @@ if __name__ == "__main__":
         
         # 4. Search using the configured collection name
         my_query = "What is the main topic of this document?"
-        search_results = search_similar_chunks(settings.COLLECTION_NAME, my_query, top_k=1)
+        search_results = search_similar_chunks(settings.COLLECTION_NAME, my_query)
         
-        print("\n--- Top Search Result ---")
-        print(search_results["documents"][0][0])
+        print(f"\n--- Top {len(search_results['documents'][0])} Search Results ---")
+        
+        # Loop through all the retrieved chunks and print them
+        for i, chunk in enumerate(search_results["documents"][0]):
+            print(f"\n[Result {i + 1}]:")
+            print(chunk)
+            print("-" * 40)

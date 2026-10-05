@@ -2,3 +2,10 @@ pymupdf4llm
 chromadb
 python-dotenv
 langchain-groq
+fastapi
+python-multipart
+SQLAlchemy
+chromadb
+pydantic
+uvicorn[standard]
+typing

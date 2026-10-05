@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from pathlib import Path
 
 # Load variables from the .env file into Python's environment
 load_dotenv()
@@ -23,5 +24,11 @@ class Settings:
     
     # NEW: Let's also define our collection name here so it's not hardcoded!
     COLLECTION_NAME = "investor_reports"
-# We create a single instance of this class to use across our application
+    # Default number of chunks to retrieve during RAG
+    DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", 3))
+    # We create a single instance of this class to use across our application
+    # Defaults to False (meaning we DO NOT allow duplicates by default)
+    ALLOW_DUPLICATE_UPLOADS = os.getenv("ALLOW_DUPLICATE_UPLOADS", "False").lower() == "true"
+    
+
 settings = Settings()
