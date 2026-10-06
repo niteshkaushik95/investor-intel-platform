@@ -1,0 +1,50 @@
+{
+    "revenue": {
+        "name": "Total Revenue",
+        "query": "revenue, net sales, total revenue, top line",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "net_income": {
+        "name": "Net Income",
+        "query": "net income, net earnings, profit after tax, bottom line",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "operating_income": {
+        "name": "Operating Income",
+        "query": "operating income, operating profit, income from operations",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "cash_flow": {
+        "name": "Cash Flow from Operating Activities",
+        "query": "cash flow from operating activities, operating cash flow, net cash provided by operating activities",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "total_assets": {
+        "name": "Total Assets",
+        "query": "total assets, balance sheet assets",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "total_liabilities": {
+        "name": "Total Liabilities",
+        "query": "total liabilities, balance sheet liabilities",
+        "type": "financial_metric",
+        "top_k": 5
+    },
+    "risk_factors": {
+        "name": "Risk Factors",
+        "query": "risk factors, uncertainties, challenges, regulatory risks, supply chain risks",
+        "type": "insight",
+        "top_k": 10
+    },
+    "growth_drivers": {
+        "name": "Growth Drivers",
+        "query": "growth drivers, growth opportunities, revenue growth, business growth, strategic initiatives",
+        "type": "insight",
+        "top_k": 10
+    }
+}

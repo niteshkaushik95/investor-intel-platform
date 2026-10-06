@@ -1,34 +1,193 @@
+import json
 import os
-from dotenv import load_dotenv
 from pathlib import Path
 
-# Load variables from the .env file into Python's environment
+from dotenv import load_dotenv
+
+
+# Load variables from .env
 load_dotenv()
 
-# We use os.getenv() to fetch the value. 
-# The second argument is a default fallback just in case the .env file is missing.
-class Settings:
-    # NEW: Calculate the root folder once, right here!
-    # __file__ is config.py. We go up one level to 'app', and one more level to 'iip' (root)
-    PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
-    
-    CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "data/chroma_db")
-    RAW_PDF_DIR = os.getenv("RAW_PDF_DIR", "data/raw")
-    MARKDOWN_DIR = os.getenv("MARKDOWN_DIR", "data/markdown")
-    
-    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 500))
-    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 50))
-    
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    LLM_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "qwen/qwen3.8-27b")
-    
-    # NEW: Let's also define our collection name here so it's not hardcoded!
-    COLLECTION_NAME = "investor_reports"
-    # Default number of chunks to retrieve during RAG
-    DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", 3))
-    # We create a single instance of this class to use across our application
-    # Defaults to False (meaning we DO NOT allow duplicates by default)
-    ALLOW_DUPLICATE_UPLOADS = os.getenv("ALLOW_DUPLICATE_UPLOADS", "False").lower() == "true"
-    
 
+# =====================================================================
+# PROJECT ROOT
+# =====================================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+
+# =====================================================================
+# BUSINESS LOGIC CONFIGURATION
+# =====================================================================
+
+METRIC_CONFIG_PATH = (
+    Path(__file__).resolve().parent / "metrics_config.json"
+)
+
+try:
+    with METRIC_CONFIG_PATH.open(
+        "r",
+        encoding="utf-8",
+    ) as f:
+        METRIC_EXTRACTION_CONFIG = json.load(f)
+
+except FileNotFoundError as e:
+    raise RuntimeError(
+        f"Metric configuration file not found: "
+        f"{METRIC_CONFIG_PATH}"
+    ) from e
+
+except json.JSONDecodeError as e:
+    raise RuntimeError(
+        f"Invalid metrics_config.json: {e}"
+    ) from e
+
+
+# Basic validation of metric configuration
+if not isinstance(METRIC_EXTRACTION_CONFIG, dict):
+    raise RuntimeError(
+        "metrics_config.json must contain a JSON object."
+    )
+
+for key, config in METRIC_EXTRACTION_CONFIG.items():
+
+    if not isinstance(config, dict):
+        raise RuntimeError(
+            f"Metric '{key}' must be a JSON object."
+        )
+
+    required_fields = {
+        "name",
+        "query",
+        "type",
+    }
+
+    missing_fields = required_fields - config.keys()
+
+    if missing_fields:
+        raise RuntimeError(
+            f"Metric '{key}' is missing required fields: "
+            f"{sorted(missing_fields)}"
+        )
+
+    if config["type"] not in {
+        "financial_metric",
+        "insight",
+    }:
+        raise RuntimeError(
+            f"Metric '{key}' has invalid type: "
+            f"{config['type']}"
+        )
+
+
+# =====================================================================
+# SYSTEM & RUNTIME SETTINGS
+# =====================================================================
+
+class Settings:
+
+    # --------------------------------------------------------------
+    # Project
+    # --------------------------------------------------------------
+
+    PROJECT_ROOT = str(PROJECT_ROOT)
+
+    # --------------------------------------------------------------
+    # Storage
+    # --------------------------------------------------------------
+
+    RAW_PDF_DIR = os.getenv(
+        "RAW_PDF_DIR",
+        str(PROJECT_ROOT / "data" / "raw"),
+    )
+
+    MARKDOWN_DIR = os.getenv(
+        "MARKDOWN_DIR",
+        str(PROJECT_ROOT / "data" / "markdown"),
+    )
+
+    CHROMA_DIR = os.getenv(
+        "CHROMA_DIR",
+        str(PROJECT_ROOT / "data" / "chroma_db"),
+    )
+
+    # --------------------------------------------------------------
+    # Chunking
+    # --------------------------------------------------------------
+
+    CHUNK_SIZE = int(
+        os.getenv(
+            "CHUNK_SIZE",
+            500,
+        )
+    )
+
+    CHUNK_OVERLAP = int(
+        os.getenv(
+            "CHUNK_OVERLAP",
+            50,
+        )
+    )
+
+    # --------------------------------------------------------------
+    # LLM
+    # --------------------------------------------------------------
+
+    GROQ_API_KEY = os.getenv(
+        "GROQ_API_KEY"
+    )
+
+    LLM_MODEL_NAME = os.getenv(
+        "LLM_MODEL_NAME",
+        "qwen/qwen3.8-27b",
+    )
+
+    # Number of retries performed internally by ChatGroq
+    # for transient API failures.
+    LLM_MAX_RETRIES = int(
+        os.getenv(
+            "LLM_MAX_RETRIES",
+            2,
+        )
+    )
+
+    # Number of times the complete extraction operation
+    # should be attempted by the document-processing worker.
+    EXTRACTION_MAX_RETRIES = int(
+        os.getenv(
+            "EXTRACTION_MAX_RETRIES",
+            3,
+        )
+    )
+
+    # --------------------------------------------------------------
+    # Vector Database
+    # --------------------------------------------------------------
+
+    COLLECTION_NAME = os.getenv(
+        "COLLECTION_NAME",
+        "investor_reports",
+    )
+
+    DEFAULT_TOP_K = int(
+        os.getenv(
+            "DEFAULT_TOP_K",
+            3,
+        )
+    )
+
+    # --------------------------------------------------------------
+    # Upload Behaviour
+    # --------------------------------------------------------------
+
+    ALLOW_DUPLICATE_UPLOADS = (
+        os.getenv(
+            "ALLOW_DUPLICATE_UPLOADS",
+            "False",
+        ).lower()
+        == "true"
+    )
+
+
+# Single application-wide settings instance
 settings = Settings()

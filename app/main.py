@@ -1,7 +1,6 @@
 import os
 import shutil
 import logging
-import time
 import uuid
 from fastapi import FastAPI, UploadFile, Depends, HTTPException, BackgroundTasks, status
 
@@ -65,8 +64,9 @@ async def upload_document_async(
                 detail=f"Duplicate file detected. This document was already uploaded as '{existing_doc.original_filename}'."
             )
 
-    name, ext = os.path.splitext(file.filename)
-    system_filename = f"{name}_{uuid.uuid4().hex}{ext}"
+    # Generate a pure, sanitized system filename
+    _, ext = os.path.splitext(file.filename)
+    system_filename = f"{uuid.uuid4().hex}{ext.lower()}"
 
     # 3. Define Paths using the SYSTEM filename
     raw_dir = os.path.join(config.PROJECT_ROOT, config.RAW_PDF_DIR)

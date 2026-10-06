@@ -1,75 +1,143 @@
-import json
 import logging
-from groq import Groq
-from app.schemas import ExtractionResponse
-from app import config
+from typing import Optional, Union
 
-logger = logging.getLogger("ExtractorService")
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
 
-# Centralized API key management
-client = Groq(api_key=config.GROQ_API_KEY)
+from app.config import settings
+from app.schemas import ExtractedMetric, ExtractedInsight
 
-def extract_financial_data(markdown_text: str) -> ExtractionResponse:
+
+logger = logging.getLogger(__name__)
+
+
+EXTRACTION_SYSTEM_PROMPT = """
+You are an elite, audit-level FinTech AI assistant.
+
+Your job is to extract ONE specific financial metric or insight
+from the provided document chunks.
+
+CRITICAL RULES:
+
+1. TRUTH & HALLUCINATION
+   - Use ONLY the provided evidence chunks.
+   - Never use outside knowledge.
+   - Never guess or infer missing information.
+
+2. NO EVIDENCE = NO EXTRACTION
+   - If the requested information is not explicitly supported
+     by the provided chunks, set `is_present` to false.
+   - When `is_present` is false, all extraction-specific fields
+     must be null.
+   - `evidence_chunk_id` must also be null.
+
+3. PROVENANCE IS MANDATORY
+   - Each chunk is identified by a marker such as:
+     `--- [CHUNK_ID: doc_45_chunk_2] ---`
+   - When `is_present` is true, copy the EXACT chunk ID containing
+     the evidence into `evidence_chunk_id`.
+   - Never invent or modify a chunk ID.
+
+4. FINANCIAL METRICS
+   - Extract the exact numerical value supported by the source.
+   - Do not perform calculations.
+   - Do not convert currencies.
+   - Preserve the source scale using the `unit` field.
+   - Extract year and period only when supported by the evidence.
+
+5. QUALITATIVE INSIGHTS
+   - Return only information explicitly supported by the evidence.
+   - Do not introduce external interpretation or facts.
+
+6. OUTPUT
+   - Follow the provided structured output schema exactly.
+"""
+
+
+def get_llm() -> ChatGroq:
     """
-    Feeds the full document text to the LLM and forces it to extract 
-    structured financial metrics and qualitative insights.
+    Create the configured Groq LLM client.
     """
-    
-    system_prompt = """
-    You are an elite FinTech AI data extractor. Your job is to read financial documents 
-    and extract exact numerical metrics and key qualitative insights.
-    
-    You MUST output valid JSON matching this exact structure:
-    {
-      "metrics": [
-        {
-          "metric_name": "Revenue",
-          "numerical_value": "15000000.0",
-          "currency": "USD",
-          "unit": "absolute",
-          "year": 2026,
-          "period_enum": "OTHER",
-          "period_description": "Nine months ended September 30, 2026",
-          "page_number": 12,
-          "section_name": "Financial Results",
-          "source_snippet": "Revenue for the nine months ended September 30, 2026 was $15.0 million."
-        }
-      ],
-      "insights": [
-        {
-          "insight_name": "Primary Risk Factor",
-          "content_text": "Supply chain disruptions are compressing margins.",
-          "page_number": 15,
-          "section_name": "Risk Factors",
-          "source_snippet": "We expect continued margin pressure from overseas supply chain delays."
-        }
-      ]
-    }
-    
-    Rules:
-    1. Do not hallucinate numbers. If it is not in the text, do not extract it.
-    2. The source_snippet MUST be an exact verbatim quote from the text. Do not summarize it.
-    3. Convert textual numbers (e.g., "15 million") into their exact normalized value (e.g., "15000000.0"). Return numerical_value as a decimal-compatible string without currency symbols or commas.
-    4. For percentages, extract the absolute number (e.g., "42.5") and set the unit to "%".
+
+    return ChatGroq(
+        temperature=0.0,
+        model_name=settings.LLM_MODEL_NAME,
+        api_key=settings.GROQ_API_KEY,
+        max_retries=settings.LLM_MAX_RETRIES,
+    )
+
+
+def extract_metric_with_llm(
+    target_name: str,
+    context: str,
+    extraction_type: str,
+) -> Optional[Union[ExtractedMetric, ExtractedInsight]]:
     """
+    Extract one configured metric or insight from retrieved RAG context.
+
+    The LLM is responsible only for extraction.
+    Provenance metadata is resolved by the calling service using
+    the returned evidence_chunk_id.
+    """
+
+    if not context or not context.strip():
+        logger.warning(
+            "Empty context supplied for target '%s'",
+            target_name,
+        )
+        return None
+
+    if extraction_type == "financial_metric":
+        schema = ExtractedMetric
+
+    elif extraction_type == "insight":
+        schema = ExtractedInsight
+
+    else:
+        logger.error(
+            "Unknown extraction_type: %s",
+            extraction_type,
+        )
+        return None
+
+    structured_llm = get_llm().with_structured_output(schema)
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                EXTRACTION_SYSTEM_PROMPT,
+            ),
+            (
+                "human",
+                """
+TARGET TO EXTRACT:
+{target_name}
+
+EXTRACTION TYPE:
+{extraction_type}
+
+EVIDENCE CHUNKS:
+{context}
+""",
+            ),
+        ]
+    )
+
+    chain = prompt | structured_llm
 
     try:
-        response = client.chat.completions.create(
-            model=config.LLM_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Extract data from this text:\n\n{markdown_text}"}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0, 
+        return chain.invoke(
+            {
+                "target_name": target_name,
+                "extraction_type": extraction_type,
+                "context": context,
+            }
         )
-        
-        raw_json_string = response.choices[0].message.content
-        parsed_json = json.loads(raw_json_string)
-        
-        validated_data = ExtractionResponse(**parsed_json)
-        return validated_data
 
-    except Exception as e:
-        logger.error(f"LLM Extraction failed: {str(e)}")
-        raise e
+    except Exception:
+        logger.exception(
+            "LLM extraction failed for target '%s'",
+            target_name,
+        )
+        raise

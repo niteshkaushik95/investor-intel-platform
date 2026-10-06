@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, Text
+# FIX 1: Removed unused 'Float' import
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, Text, Numeric
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.database import Base
@@ -13,8 +14,10 @@ class DocumentType(enum.Enum):
     UNKNOWN = "unknown"
 
 class DocumentStatus(enum.Enum):
+    PENDING = "pending"       # Added for the atomic lock
     PROCESSING = "processing"
-    COMPLETE = "complete"
+    COMPLETED = "completed"
+    PARTIAL = "partial"       # Must be explicitly added
     FAILED = "failed"
 
 
@@ -25,9 +28,8 @@ class Document(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     
-    # NEW: Store both the user's name and the system's unique name
-    original_filename = Column(String, nullable=False)                         # e.g., 'report.pdf'
-    system_filename = Column(String, unique=True, nullable=False, index=True)  # e.g., 'report_1696512345.pdf'
+    original_filename = Column(String, nullable=False)                         
+    system_filename = Column(String, unique=True, nullable=False, index=True)  
     
     raw_pdf_path = Column(String, nullable=False)
     processed_md_path = Column(String)
@@ -35,18 +37,16 @@ class Document(Base):
     status = Column(Enum(DocumentStatus), default=DocumentStatus.PROCESSING, nullable=False)
     file_hash = Column(String, index=True, nullable=True) 
 
-    # Global Context
     document_type = Column(Enum(DocumentType), default=DocumentType.UNKNOWN, nullable=False, index=True)
     report_year = Column(Integer, nullable=True, index=True)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
-    # Relationships
     metrics = relationship("FinancialMetric", back_populates="document", cascade="all, delete")
     insights = relationship("DocumentInsight", back_populates="document", cascade="all, delete")
 
-# --- Table 2: Quantitative Key-Value Data (Numbers) ---
+# --- Table 2: Extracted Financial Metrics ---
 
 class FinancialMetric(Base):
     __tablename__ = "financial_metrics"
@@ -55,25 +55,30 @@ class FinancialMetric(Base):
     metric_name = Column(String, nullable=False, index=True) 
     
     numerical_value = Column(Numeric(20, 4), nullable=False)          
-    
-    # --- NEW CONTEXT COLUMNS ---
-    currency = Column(String(3), nullable=True)          # e.g., "USD", "EUR", "INR"
-    unit = Column(String, nullable=True)                 # e.g., "%", "millions", "employees", "bps"
+    currency = Column(String(3), nullable=True)          
+    unit = Column(String, nullable=True)                 
     
     year = Column(Integer, nullable=False, index=True)       
-    period_enum = Column(String, nullable=False, index=True)
+    
+    period = Column(String, nullable=True, index=True)
     period_description = Column(String, nullable=True)
 
     # Data Lineage
-    page_number = Column(Integer, nullable=True)             
+    page_start = Column(Integer, nullable=True)
+    page_end = Column(Integer, nullable=True)       
     section_name = Column(String, nullable=True)             
     source_snippet = Column(Text, nullable=True)             
+    
+    # FIX 3: Enforced mandatory provenance (nullable=False)
+    chunk_id = Column(String, nullable=False, index=True)
 
     extracted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     document = relationship("Document", back_populates="metrics")
     
+# --- Table 3: Qualitative Insights ---
+
 class DocumentInsight(Base):
     __tablename__ = "document_insights"
 
@@ -81,11 +86,13 @@ class DocumentInsight(Base):
     insight_name = Column(String, nullable=False, index=True)
     content_text = Column(Text, nullable=False)               
 
-    page_number = Column(Integer, nullable=True)             
+    page_start = Column(Integer, nullable=True)
+    page_end = Column(Integer, nullable=True)             
     section_name = Column(String, nullable=True)             
-    
-    # FIX: Added snippet for auditability on qualitative synthesis
     source_snippet = Column(Text, nullable=True)
+    
+    # FIX 3: Enforced mandatory provenance (nullable=False)
+    chunk_id = Column(String, nullable=False, index=True)
     
     extracted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
