@@ -301,7 +301,7 @@ def process_document_task(
 
             for attempt in range(
                 1,
-                settings.MAX_RETRIES + 1,
+                settings.EXTRACTION_MAX_RETRIES + 1,
             ):
 
                 try:
@@ -311,7 +311,7 @@ def process_document_task(
                         "(attempt %d/%d)",
                         metric_name,
                         attempt,
-                        settings.MAX_RETRIES,
+                        settings.EXTRACTION_MAX_RETRIES,
                     )
 
                     llm_response = (
@@ -547,7 +547,7 @@ def process_document_task(
 
                     db.rollback()
 
-                    if attempt < settings.MAX_RETRIES:
+                    if attempt < settings.EXTRACTION_MAX_RETRIES:
 
                         logger.warning(
                             "Attempt %d failed for %s: %s. "
@@ -562,7 +562,7 @@ def process_document_task(
                         logger.exception(
                             "All %d LLM attempts failed "
                             "for %s.",
-                            settings.MAX_RETRIES,
+                            settings.EXTRACTION_MAX_RETRIES,
                             metric_name,
                         )
 

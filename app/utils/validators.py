@@ -1,6 +1,6 @@
 from fastapi import UploadFile, File, HTTPException, status
 # We import the new global constants directly
-from app import config
+from app.config import settings
 
 async def validate_pdf_file(file: UploadFile = File(...)) -> UploadFile:
     """
@@ -8,10 +8,10 @@ async def validate_pdf_file(file: UploadFile = File(...)) -> UploadFile:
     """
     
     # 1. Size Validation (USING BYTES)
-    if file.size > config.MAX_PDF_FILE_UPLOAD_SIZE_BYTES:
+    if file.size > settings.MAX_PDF_FILE_UPLOAD_SIZE_BYTES:
         
         # FIX: We use the MB constant DIRECTLY. No division necessary.
-        max_mb = config.MAX_PDF_FILE_UPLOAD_SIZE_MB
+        max_mb = settings.MAX_PDF_FILE_UPLOAD_SIZE_MB
         
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,

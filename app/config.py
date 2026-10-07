@@ -90,7 +90,7 @@ class Settings:
     # Project
     # --------------------------------------------------------------
 
-    PROJECT_ROOT = str(PROJECT_ROOT)
+    PROJECT_ROOT = Path(PROJECT_ROOT)
 
     # --------------------------------------------------------------
     # Storage
@@ -175,6 +175,7 @@ class Settings:
             3,
         )
     )
+    CHROMA_BATCH_SIZE = int(os.getenv("CHROMA_BATCH_SIZE", 100))
 
     # --------------------------------------------------------------
     # Upload Behaviour
@@ -187,6 +188,8 @@ class Settings:
         ).lower()
         == "true"
     )
+    MAX_PDF_FILE_UPLOAD_SIZE_MB = int(os.getenv("MAX_PDF_FILE_UPLOAD_SIZE_MB", 10))
+    MAX_PDF_FILE_UPLOAD_SIZE_BYTES = MAX_PDF_FILE_UPLOAD_SIZE_MB * 1024 * 1024
 
 
 # Single application-wide settings instance

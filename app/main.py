@@ -10,9 +10,8 @@ from app.database import get_db, engine, Base
 from app.models import Document, DocumentStatus
 
 # --- Services & Config Imports ---
-from app.services.rag_service import ask_rag_question
-from app.services.processing_service import _background_worker_logic
-from app import config
+from app.services.pdf_processor import process_document_task
+from app.config import settings
 
 # --- Utilities Imports ---
 from app.utils.validators import validate_pdf_file
@@ -36,12 +35,6 @@ app = FastAPI(
 def read_root():
     return {"status": "online", "message": "Welcome to the Investor Intel Platform API"}
 
-@app.get("/api/ask")
-def ask_question(query: str):
-    answer = ask_rag_question(query)
-    return {"query": query, "answer": answer}
-
-
 @app.post("/api/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document_async(
     background_tasks: BackgroundTasks,
@@ -56,7 +49,7 @@ async def upload_document_async(
     file_fingerprint = await calculate_file_hash(file)
 
     # 1. DEDUPLICATION CHECK (Checks the hash, not the filename)
-    if not config.ALLOW_DUPLICATE_UPLOADS:
+    if not settings.ALLOW_DUPLICATE_UPLOADS:
         existing_doc = db.query(Document).filter(Document.file_hash == file_fingerprint).first()
         if existing_doc:
             raise HTTPException(
@@ -69,8 +62,8 @@ async def upload_document_async(
     system_filename = f"{uuid.uuid4().hex}{ext.lower()}"
 
     # 3. Define Paths using the SYSTEM filename
-    raw_dir = os.path.join(config.PROJECT_ROOT, config.RAW_PDF_DIR)
-    markdown_dir = os.path.join(config.PROJECT_ROOT, config.MARKDOWN_DIR)
+    raw_dir = os.path.join(settings.PROJECT_ROOT, settings.RAW_PDF_DIR)
+    markdown_dir = os.path.join(settings.PROJECT_ROOT, settings.MARKDOWN_DIR)
     os.makedirs(raw_dir, exist_ok=True)
     os.makedirs(markdown_dir, exist_ok=True)
     
@@ -89,7 +82,7 @@ async def upload_document_async(
         original_filename=file.filename,
         system_filename=system_filename,
         raw_pdf_path=raw_path,
-        status=DocumentStatus.PROCESSING,
+        status=DocumentStatus.PENDING,
         file_hash=file_fingerprint
     )
     
@@ -107,12 +100,10 @@ async def upload_document_async(
 
     # 6. Hand off to Background Task (passing the system name)
     background_tasks.add_task(
-        _background_worker_logic, 
+        process_document_task, 
         document_id=doc_id, 
-        filename=system_filename, 
-        raw_path=raw_path, 
-        collection_name=config.COLLECTION_NAME, 
-        markdown_dir=markdown_dir
+        pdf_path=raw_path, 
+        filename=system_filename
     )
     
     return {
