@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
+import json # Add to top of file
 
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -285,6 +286,10 @@ class FinTechVectorStore:
 
                     if value is None:
                         continue
+
+                    # NEW: Convert lists and dicts to JSON strings for ChromaDB
+                    if isinstance(value, (list, dict)):
+                        value = json.dumps(value)
 
                     if not isinstance(
                         value,

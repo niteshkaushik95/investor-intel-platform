@@ -1,4 +1,6 @@
 import logging
+import time
+import random
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -166,7 +168,10 @@ def process_document_task(
             document_id,
         )
 
-        chunker = FinTechMarkdownChunker()
+        chunker = FinTechMarkdownChunker(
+            max_embedding_tokens=settings.CHUNK_SIZE, 
+            chunk_overlap_tokens=settings.CHUNK_OVERLAP
+        )
 
         chunks = chunker.chunk_document(
             full_markdown=full_markdown,
@@ -281,9 +286,13 @@ def process_document_task(
                     "text": chunk_text,
                     "meta": chunk_meta,
                 }
+               
+                pages = chunk_meta.get("pages", "Unknown")
+                heading = chunk_meta.get("heading", "Unknown")
+                c_type = chunk_meta.get("content_type", "text")
 
                 context_blocks.append(
-                    f"--- [CHUNK_ID: {chunk_id}] ---\n"
+                    f"--- [CHUNK_ID: {chunk_id} | PAGES: {pages} | SECTION: {heading} | TYPE: {c_type}] ---\n"
                     f"{chunk_text}"
                 )
 
@@ -462,7 +471,7 @@ def process_document_task(
                             ),
 
                             section_name=(
-                                meta.get("header_1")
+                                meta.get("heading")
                             ),
 
                             source_snippet=(
@@ -509,7 +518,7 @@ def process_document_task(
                             ),
 
                             section_name=(
-                                meta.get("header_1")
+                                meta.get("heading")
                             ),
 
                             source_snippet=(
@@ -540,6 +549,11 @@ def process_document_task(
                         "Successfully extracted %s",
                         metric_name,
                     )
+                    # --- NEW: Random delay to prevent rate limits ---
+                 
+                    sleep_time = random.uniform(settings.MIN_LLM_REQUEST_INTERVAL, settings.MAX_LLM_REQUEST_INTERVAL)
+                    logger.info("Sleeping for %.2f seconds to prevent rate limits Error...", sleep_time)
+                    time.sleep(sleep_time)
 
                     break
 

@@ -118,16 +118,20 @@ class Settings:
     CHUNK_SIZE = int(
         os.getenv(
             "CHUNK_SIZE",
-            500,
+            240,
         )
     )
 
     CHUNK_OVERLAP = int(
         os.getenv(
             "CHUNK_OVERLAP",
-            50,
+            40,
         )
     )
+    TOKENIZER_ENCODING = os.getenv(
+            "TOKENIZER_ENCODING",
+            "cl100k_base",
+        )
 
     # --------------------------------------------------------------
     # LLM
@@ -159,6 +163,19 @@ class Settings:
             3,
         )
     )
+    MIN_LLM_REQUEST_INTERVAL = int(
+        os.getenv(
+            "MIN_LLM_REQUEST_INTERVAL",
+            12,
+        )
+    )
+    MAX_LLM_REQUEST_INTERVAL = int(
+        os.getenv(
+            "MAX_LLM_REQUEST_INTERVAL",
+            20,
+        )
+    )
+
 
     # --------------------------------------------------------------
     # Vector Database
